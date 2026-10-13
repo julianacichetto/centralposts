@@ -1,0 +1,25 @@
+// Calendário inicial: 14/10 a 30/11/2026, seg/qua/sex às 8h.
+// "pausado" = precisa de informação sua antes de gerar (ex.: oferta da Black Friday).
+export const CALENDARIO_INICIAL = [
+  ["2026-10-14", "carrossel", "Manipulado x industrializado: qual a diferença", "Manipulado ou industrializado?"],
+  ["2026-10-16", "foto", "Bastidores do laboratório de manipulação", "É aqui que a sua fórmula nasce"],
+  ["2026-10-19", "carrossel", "Como pedir seu manipulado pelo WhatsApp em 4 passos", "Sua fórmula em 4 passos"],
+  ["2026-10-21", "foto", "Mito ou verdade: manipulado é menos seguro? (MITO — Boas Práticas de Manipulação da ANVISA)", "Manipulado é menos seguro?"],
+  ["2026-10-23", "carrossel", "Formas farmacêuticas: cápsula, sachê, creme, gotas e quando cada uma é usada", "Cápsula, sachê, creme ou gotas?"],
+  ["2026-10-26", "foto", "Apresentação da farmácia HF Fórmulas", "Prazer, somos a HF Fórmulas"],
+  ["2026-10-28", "carrossel", "Como guardar seus manipulados corretamente (calor, umidade, banheiro)", "Banheiro não é lugar de remédio"],
+  ["2026-10-30", "foto", "Enviamos manipulados para todo o Brasil pelos Correios", "Sua fórmula chega até você"],
+  ["2026-11-02", "foto", "Novembro Azul começou: mês de conscientização sobre a saúde do homem (feriado de Finados, tom leve)", "Novembro é azul"],
+  ["2026-11-04", "carrossel", "Novembro Azul: exames de rotina que o homem não deve adiar (converse com seu médico)", "Homem também faz check-up"],
+  ["2026-11-06", "carrossel", "Por que o manipulado tem validade menor que o industrializado", "Por que o manipulado vence antes?"],
+  ["2026-11-09", "foto", "Mito ou verdade: dá para juntar vários ativos em uma só fórmula? (VERDADE, quando prescrito)", "Vários ativos em uma cápsula?"],
+  ["2026-11-11", "carrossel", "Perguntas frequentes: prazo, entrega e validade", "Prazo, entrega e validade"],
+  ["2026-11-13", "foto", "Novembro Azul: lembrete para marcar o check-up", "Já marcou seu check-up?"],
+  ["2026-11-16", "carrossel", "O que o farmacêutico confere na sua receita antes de manipular", "O que acontece com a sua receita"],
+  ["2026-11-18", "foto", "Bastidores: controle de qualidade na manipulação", "Qualidade em cada cápsula"],
+  ["2026-11-20", "carrossel", "Dicas para não esquecer de tomar seus manipulados no horário", "Esqueceu de tomar de novo?"],
+  ["2026-11-23", "foto", "Esquenta Black Friday: aviso de que vem novidade (sem citar desconto)", "Vem aí…"],
+  ["2026-11-25", "carrossel", "Como ler o rótulo do seu manipulado", "Você sabe ler esse rótulo?"],
+  ["2026-11-27", "foto", "Black Friday HF Fórmulas", "Black Friday", "pausado", "PREENCHER: oferta, condições e validade (confirmar com o farmacêutico responsável)"],
+  ["2026-11-30", "carrossel", "Resumo do mês: 5 coisas que você aprendeu sobre manipulados", "5 coisas sobre manipulados"],
+].map(([date, formato, tema, gancho, status = "rascunho", notas = ""]) => ({ date, formato, tema, gancho, status, notas }));

@@ -1,0 +1,10 @@
+{
+  "name": "central-posts-hf",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Central de Posts HF Fórmulas — gera, aprova pelo WhatsApp e publica no Instagram",
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  }
+}

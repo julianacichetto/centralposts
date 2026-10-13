@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Central de Posts HF</title>
+<link rel="icon" href="/brand/logo.png">
+<style>
+  :root{--red:#BE0002;--red-dark:#9A0002;--ink:#111;--muted:#6B6B6B;--line:#E6E6E6;--bg:#F6F6F6;--card:#fff}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);-webkit-text-size-adjust:100%}
+  header{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--line);padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top));display:flex;align-items:center;gap:12px}
+  header img{height:34px}
+  header h1{font-size:16px;margin:0;flex:1}
+  nav{display:flex;gap:6px}
+  nav button{border:0;background:none;font:inherit;font-weight:600;color:var(--muted);padding:10px 8px;min-height:44px}
+  nav button.on{color:var(--red);box-shadow:inset 0 -3px 0 var(--red)}
+  main{max-width:880px;margin:0 auto;padding:16px}
+  .card{background:var(--card);border-radius:14px;border:1px solid var(--line);padding:16px;margin-bottom:12px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .btn{border:0;border-radius:10px;padding:12px 16px;min-height:44px;font:inherit;font-weight:700;cursor:pointer;background:var(--ink);color:#fff}
+  .btn.red{background:var(--red)} .btn.red:hover{background:var(--red-dark)}
+  .btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+  .btn:disabled{opacity:.5;cursor:default}
+  label{display:block;font-size:13px;font-weight:700;margin:12px 0 6px}
+  input,select,textarea{width:100%;font:inherit;font-size:16px;padding:10px 12px;border:1px solid #CFCFCF;border-radius:10px;background:#fff;color:var(--ink)}
+  textarea{min-height:90px;resize:vertical}
+  .chip{display:inline-block;font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px;background:#EEE;color:#333;white-space:nowrap}
+  .chip.carrossel{background:var(--red);color:#fff} .chip.foto{background:var(--ink);color:#fff}
+  .st-rascunho{background:#EEE;color:#444} .st-pausado{background:#FFF1C2;color:#6B4E00} .st-gerando,.st-publicando{background:#DCEBFF;color:#0B4AA2}
+  .st-aguardando{background:#FFE3D6;color:#8A2A00} .st-aprovado{background:#D9F2E1;color:#0F6B33} .st-publicado{background:#0F6B33;color:#fff} .st-erro{background:#FFD6D6;color:#A00}
+  .post{display:flex;gap:14px;align-items:center;cursor:pointer}
+  .post .dia{width:56px;text-align:center;flex:none}
+  .post .dia b{display:block;font-size:24px} .post .dia small{color:var(--red);font-weight:800;font-size:12px}
+  .post .info{flex:1;min-width:0} .post .info div{font-weight:700;margin:4px 0 2px;line-height:1.25}
+  .post .thumb{width:56px;height:70px;border-radius:8px;object-fit:cover;background:#EEE;flex:none}
+  .muted{color:var(--muted);font-size:14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .art{position:relative} .art img{width:100%;border-radius:10px;display:block;background:#EEE;aspect-ratio:4/5;object-fit:cover}
+  .art.story img{aspect-ratio:9/16}
+  .art .lbl{font-size:12px;font-weight:700;margin:6px 0}
+  .slide-ed{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
+  .alert{background:#FFF1C2;border-radius:10px;padding:12px;font-size:14px;margin:10px 0}
+  .err{background:#FFD6D6;color:#900}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:12px;font-weight:600;z-index:20;max-width:90vw}
+  .login{max-width:360px;margin:12vh auto;text-align:center} .login img{height:70px;margin-bottom:16px}
+  h2{font-size:20px;margin:4px 0 12px} h3{font-size:16px;margin:0 0 8px}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const DIAS = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];
+const STATUS = { rascunho: "Rascunho", pausado: "Precisa de info", gerando: "Gerando…", aguardando: "Aguardando aprovação", aprovado: "Aprovado", publicando: "Publicando…", publicado: "Publicado", erro: "Erro" };
+let senha = ""; try { senha = localStorage.getItem("hf_senha") || ""; } catch (e) {}
+let aba = "calendario", posts = [], cfg = null, atual = null, timer = null;
+
+function toast(msg) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 3500); }
+async function api(path, opts = {}) {
+  const r = await fetch("/api/" + path, { ...opts, headers: { "content-type": "application/json", "x-senha": senha }, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401) { sair(); throw new Error("Senha inválida"); }
+  if (!r.ok) throw new Error(j.erro || "Erro " + r.status);
+  return j;
+}
+function sair() { senha = ""; try { localStorage.removeItem("hf_senha"); } catch (e) {} render(); }
+const diaSemana = (iso) => DIAS[new Date(iso + "T12:00:00").getDay()];
+const chipStatus = (s) => `<span class="chip st-${s}">${STATUS[s] || s}</span>`;
+const chipFormato = (f) => `<span class="chip ${f}">${f === "carrossel" ? "CARROSSEL" : "FOTO"}</span>`;
+
+function render() {
+  clearInterval(timer);
+  const app = $("#app");
+  if (!senha) {
+    app.innerHTML = `<div class="login card"><img src="/brand/logo.png" alt="HF Fórmulas"><h2>Central de Posts</h2>
+      <form id="f"><input id="s" type="password" placeholder="Senha" autocomplete="current-password"><br><br><button class="btn red" style="width:100%">Entrar</button></form></div>`;
+    $("#f").onsubmit = async (e) => { e.preventDefault(); senha = $("#s").value; try { await api("config"); try { localStorage.setItem("hf_senha", senha); } catch (e) {} render(); } catch (err) { toast(err.message); } };
+    return;
+  }
+  app.innerHTML = `<header><img src="/brand/logo.png" alt="HF Fórmulas"><h1>Central de Posts</h1>
+    <nav><button data-a="calendario" class="${aba === "calendario" ? "on" : ""}">Calendário</button><button data-a="config" class="${aba === "config" ? "on" : ""}">Ajustes</button></nav></header><main id="m"></main>`;
+  app.querySelectorAll("nav button").forEach((b) => (b.onclick = () => { aba = b.dataset.a; atual = null; render(); }));
+  if (atual) return telaPost();
+  aba === "config" ? telaConfig() : telaCalendario();
+}
+
+// ---------- calendário ----------
+async function telaCalendario() {
+  const m = $("#m"); m.innerHTML = `<p class="muted">Carregando…</p>`;
+  try { posts = await api("posts"); } catch (e) { m.innerHTML = `<div class="alert err">${esc(e.message)}</div>`; return; }
+  const meses = {};
+  posts.forEach((p) => (meses[p.date.slice(0, 7)] ||= []).push(p));
+  let html = `<div class="row" style="justify-content:space-between;margin-bottom:12px"><h2>Calendário</h2><button class="btn red" id="novo">+ Novo post</button></div>`;
+  if (!posts.length) html += `<div class="card"><h3>Nenhum post ainda</h3><p class="muted">Importe o calendário de 14/10 a 30/11 (seg, qua e sex às 8h).</p><button class="btn red" id="imp">Importar calendário</button></div>`;
+  for (const [mes, lista] of Object.entries(meses)) {
+    const nome = new Date(mes + "-15T12:00:00").toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    html += `<h3 style="margin:18px 0 8px">${nome.charAt(0).toUpperCase() + nome.slice(1)}</h3>`;
+    for (const p of lista) {
+      const thumb = p.slides?.[0]?.url;
+      html += `<div class="card post" data-id="${p.id}">
+        <div class="dia"><small>${diaSemana(p.date)}</small><b>${p.date.slice(8)}</b></div>
+        <div class="info"><div class="row" style="gap:6px">${chipFormato(p.formato)} ${chipStatus(p.status)}</div><div>${esc(p.tema)}</div><span class="muted">${esc(p.gancho || "")}</span></div>
+        ${thumb ? `<img class="thumb" src="${esc(thumb)}" alt="">` : ""}</div>`;
+    }
+  }
+  m.innerHTML = html;
+  m.querySelectorAll(".post").forEach((el) => (el.onclick = () => { atual = el.dataset.id; render(); }));
+  $("#novo").onclick = novoPost;
+  if ($("#imp")) $("#imp").onclick = async () => { try { const r = await api("importar", { method: "POST", body: {} }); toast(`${r.importados} posts importados`); render(); } catch (e) { toast(e.message); } };
+}
+async function novoPost() {
+  const date = prompt("Data (AAAA-MM-DD):"); if (!date) return;
+  const tema = prompt("Tema do post:"); if (!tema) return;
+  const formato = confirm("É carrossel? (OK = carrossel, Cancelar = foto única)") ? "carrossel" : "foto";
+  try { const p = await api("posts", { method: "POST", body: { date, tema, formato } }); atual = p.id; render(); } catch (e) { toast(e.message); }
+}
+
+// ---------- post ----------
+async function telaPost() {
+  const m = $("#m");
+  let p; try { p = await api("posts/" + atual); } catch (e) { m.innerHTML = `<div class="alert err">${esc(e.message)}</div>`; return; }
+  const ocupado = ["gerando", "publicando"].includes(p.status);
+  const temArte = p.slides?.some((s) => s.url);
+  const artes = (p.slides || []).map((s, i) => `<div class="art"><div class="lbl">${p.formato === "carrossel" ? "Slide " + (i + 1) : "Feed"}</div>${s.url ? `<a href="${esc(s.url)}" target="_blank"><img src="${esc(s.url)}" alt=""></a>` : `<img alt="">`}
+      <button class="btn ghost regen" data-s="${i}" style="width:100%;margin-top:6px" ${ocupado ? "disabled" : ""}>Refazer arte</button></div>`).join("")
+    + (p.story ? `<div class="art story"><div class="lbl">Story</div>${p.story.url ? `<a href="${esc(p.story.url)}" target="_blank"><img src="${esc(p.story.url)}" alt=""></a>` : `<img alt="">`}
+      <button class="btn ghost regen" data-s="story" style="width:100%;margin-top:6px" ${ocupado ? "disabled" : ""}>Refazer arte</button></div>` : "");
+
+  const edSlide = (s, i, nome) => `<div class="slide-ed" data-i="${i}"><h3>${nome}</h3>
+    <label>Título</label><input data-k="titulo" value="${esc(s.titulo)}">
+    <label>Palavra(s) em vermelho</label><input data-k="destaque" value="${esc(s.destaque)}">
+    <label>Faixa vermelha</label><input data-k="faixa" value="${esc(s.faixa)}">
+    <label>Itens (um por linha)</label><textarea data-k="itens">${esc((s.itens || []).join("\n"))}</textarea>
+    <label>Cena da foto (em inglês)</label><textarea data-k="cena">${esc(s.cena)}</textarea></div>`;
+
+  m.innerHTML = `<button class="btn ghost" id="voltar">← Voltar</button>
+  <div class="card" style="margin-top:12px">
+    <div class="row" style="gap:6px">${chipFormato(p.formato)} ${chipStatus(p.status)} ${p.progresso ? `<span class="muted">${esc(p.progresso)}</span>` : ""}</div>
+    <h2 style="margin-top:10px">${diaSemana(p.date)} ${p.date.slice(8)}/${p.date.slice(5, 7)} · ${esc(p.tema)}</h2>
+    ${p.erro ? `<div class="alert err">${esc(p.erro)}</div>` : ""}
+    ${p.alertas?.length ? `<div class="alert">⚠️ Termos para revisar: ${esc(p.alertas.join(", "))}</div>` : ""}
+    <div class="row">
+    <button class="btn red" id="gerar" ${ocupado ? "disabled" : ""}>${temArte ? "Refazer tudo" : "Gerar textos e artes"}</button>
+    <button class="btn ghost" id="ajustar" ${ocupado || !temArte ? "disabled" : ""}>Pedir ajuste</button>
+    <button class="btn ghost" id="enviar" ${ocupado || !temArte ? "disabled" : ""}>Mandar no WhatsApp</button>
+    <button class="btn ghost" id="aprovar" ${ocupado || !temArte ? "disabled" : ""}>Aprovar</button>
+    <button class="btn ghost" id="publicar" ${ocupado || !temArte ? "disabled" : ""}>Publicar agora</button></div>
+    <p class="muted">Gerar manda automaticamente para aprovação no WhatsApp ao terminar.</p></div>
+
+  ${(p.slides?.length || p.story) ? `<div class="card"><h3>Artes</h3><div class="grid">${artes}</div></div>` : ""}
+
+  <div class="card"><h3>Dados do post</h3>
+    <label>Data</label><input id="date" type="date" value="${esc(p.date)}">
+    <label>Formato</label><select id="formato"><option value="carrossel" ${p.formato === "carrossel" ? "selected" : ""}>Carrossel (5 slides)</option><option value="foto" ${p.formato === "foto" ? "selected" : ""}>Foto única</option></select>
+    <label>Tema</label><input id="tema" value="${esc(p.tema)}">
+    <label>Gancho da capa</label><input id="gancho" value="${esc(p.gancho)}">
+    <label>Notas para a IA (ex.: oferta, detalhe importante)</label><textarea id="notas">${esc(p.notas)}</textarea>
+    <label>Status</label><select id="status">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${p.status === k ? "selected" : ""}>${v}</option>`).join("")}</select>
+    <div class="row" style="margin-top:14px"><button class="btn" id="salvar">Salvar</button><button class="btn ghost" id="excluir" style="color:#A00">Excluir post</button></div>
+  </div>
+
+  ${p.slides?.length ? `<div class="card"><h3>Legenda</h3><textarea id="legenda" style="min-height:160px">${esc(p.legenda)}</textarea>
+    ${p.slides.map((s, i) => edSlide(s, i, p.formato === "carrossel" ? "Slide " + (i + 1) : "Texto da arte")).join("")}
+    ${p.story ? `<div id="ed-story">${edSlide(p.story, "story", "Story")}</div>` : ""}
+    <p class="muted">Mudou o texto? Salve e use "Refazer arte" no slide para gerar a imagem nova.</p>
+    <button class="btn" id="salvar2">Salvar textos</button></div>` : ""}`;
+
+  $("#voltar").onclick = () => { atual = null; render(); };
+  const lerCampos = () => {
+    const ler = (el) => ({ titulo: $('[data-k="titulo"]', el).value, destaque: $('[data-k="destaque"]', el).value, faixa: $('[data-k="faixa"]', el).value,
+      itens: $('[data-k="itens"]', el).value.split("\n").map((x) => x.trim()).filter(Boolean), cena: $('[data-k="cena"]', el).value });
+    const out = { date: $("#date").value, formato: $("#formato").value, tema: $("#tema").value, gancho: $("#gancho").value, notas: $("#notas").value, status: $("#status").value };
+    if (p.slides?.length) {
+      out.legenda = $("#legenda").value;
+      out.slides = p.slides.map((s, i) => ({ ...s, ...ler(m.querySelector(`.slide-ed[data-i="${i}"]`)) }));
+      if (p.story) out.story = { ...p.story, ...ler($("#ed-story")) };
+    }
+    return out;
+  };
+  const acao = async (fn, msg) => { try { const r = await fn(); toast(r?.msg || msg); render(); } catch (e) { toast(e.message); } };
+  $("#salvar").onclick = () => acao(() => api("posts/" + p.id, { method: "PUT", body: lerCampos() }), "Salvo");
+  if ($("#salvar2")) $("#salvar2").onclick = $("#salvar").onclick;
+  $("#gerar").onclick = () => { if (temArte && !confirm("Refazer textos e todas as artes?")) return; acao(() => api(`posts/${p.id}/gerar`, { method: "POST", body: {} }), "Gerando… leva alguns minutos"); };
+  $("#ajustar").onclick = () => { const t = prompt("O que ajustar? (ex.: no slide 2 troca o título por …)"); if (t) acao(() => api(`posts/${p.id}/gerar`, { method: "POST", body: { instrucao: t } }), "Ajustando…"); };
+  $("#enviar").onclick = () => acao(() => api(`posts/${p.id}/enviar`, { method: "POST", body: {} }), "Enviado no WhatsApp");
+  $("#aprovar").onclick = () => acao(() => api(`posts/${p.id}/aprovar`, { method: "POST", body: {} }), "Aprovado");
+  $("#publicar").onclick = () => { if (confirm("Publicar no Instagram agora?")) acao(() => api(`posts/${p.id}/publicar`, { method: "POST", body: {} }), "Publicando…"); };
+  $("#excluir").onclick = () => { if (confirm("Excluir este post?")) acao(async () => { await api("posts/" + p.id, { method: "DELETE" }); atual = null; }, "Excluído"); };
+  m.querySelectorAll(".regen").forEach((b) => (b.onclick = async () => {
+    const ajuste = prompt("Algum ajuste na imagem? (opcional)") ?? null; if (ajuste === null) return;
+    try { await api("posts/" + p.id, { method: "PUT", body: lerCampos() }); } catch (e) { return toast(e.message); }
+    const s = b.dataset.s === "story" ? "story" : Number(b.dataset.s);
+    acao(() => api(`posts/${p.id}/gerar`, { method: "POST", body: { slide: s, ajusteImagem: ajuste || undefined } }), "Refazendo a arte…");
+  }));
+  if (ocupado) timer = setInterval(async () => { try { const n = await api("posts/" + p.id); if (n.status !== p.status || n.progresso !== p.progresso) render(); } catch (e) {} }, 5000);
+}
+
+// ---------- configurações ----------
+async function telaConfig() {
+  const m = $("#m");
+  try { cfg = await api("config"); } catch (e) { m.innerHTML = `<div class="alert err">${esc(e.message)}</div>`; return; }
+  m.innerHTML = `<h2>Ajustes</h2>
+  <div class="card"><h3>Aprovação</h3>
+    <label>WhatsApp de quem aprova (com DDI e DDD, só números)</label><input id="aprovador" inputmode="numeric" placeholder="5519999999999" value="${esc(cfg.aprovador)}">
+    <p class="muted">Gera às 18h da véspera, manda pra aprovação e publica às 8h no dia.</p></div>
+  <div class="card"><h3>Dados da marca</h3>
+    <label>WhatsApp que aparece nas artes</label><input id="whatsappExibido" value="${esc(cfg.whatsappExibido)}">
+    <label>Site</label><input id="site" value="${esc(cfg.site)}">
+    <label>@ do Instagram</label><input id="instagram" value="${esc(cfg.instagram)}">
+    <label>Hashtags padrão</label><input id="hashtags" value="${esc(cfg.hashtags)}"></div>
+  <div class="card"><h3>Estilo visual (vai em todas as artes)</h3>
+    <textarea id="estilo" style="min-height:150px">${esc(cfg.estilo)}</textarea>
+    <div class="row" style="margin-top:12px;align-items:flex-start">
+      <div><label>Logo</label><img src="${esc(cfg.logoUrl)}" style="height:60px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:4px"><br><input type="file" id="upLogo" accept="image/png,image/jpeg"></div>
+      <div><label>Imagem de referência de estilo (opcional)</label>${cfg.estiloRefUrl ? `<img src="${esc(cfg.estiloRefUrl)}" style="height:90px;border-radius:8px"><br>` : ""}<input type="file" id="upEstilo" accept="image/png,image/jpeg"></div>
+    </div></div>
+  <div class="card"><h3>Termos proibidos (ANVISA)</h3><p class="muted">Um por linha. Se aparecerem, a IA refaz e você recebe um alerta.</p>
+    <textarea id="proibidas" style="min-height:160px">${esc((cfg.proibidas || []).join("\n"))}</textarea></div>
+  <button class="btn red" id="salvarCfg">Salvar ajustes</button> <button class="btn ghost" id="sair">Sair</button>`;
+  $("#salvarCfg").onclick = async () => {
+    const body = { aprovador: $("#aprovador").value.replace(/\D/g, ""), whatsappExibido: $("#whatsappExibido").value, site: $("#site").value, instagram: $("#instagram").value,
+      hashtags: $("#hashtags").value, estilo: $("#estilo").value, proibidas: $("#proibidas").value.split("\n").map((x) => x.trim()).filter(Boolean) };
+    try { await api("config", { method: "PUT", body }); toast("Ajustes salvos"); } catch (e) { toast(e.message); }
+  };
+  $("#sair").onclick = sair;
+  const upload = (tipo) => async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    if (f.size > 4e6) return toast("Imagem muito grande (máx. 4 MB)");
+    const b64 = await new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.readAsDataURL(f); });
+    try { await api("upload", { method: "POST", body: { tipo, b64, mime: f.type } }); toast("Imagem enviada"); render(); } catch (err) { toast(err.message); }
+  };
+  $("#upLogo").onchange = upload("logo"); $("#upEstilo").onchange = upload("estilo");
+}
+
+render();
+</script>
+</body>
+</html>
