@@ -2,3 +2,8 @@ node_modules/
 .env
 .env.local
 .netlify/
+
+# Credenciais sensíveis
+arquivofirebase.txt
+*.adminsdk*.json
+*firebase*adminsdk*.json
