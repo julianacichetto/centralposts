@@ -1,6 +1,6 @@
-// Firebase, utilidades de data/resposta e configuração da Central.
+// Firebase (só Firestore, plano gratuito), imagens no Netlify Blobs, utilidades e configuração.
 import admin from "firebase-admin";
-import { randomUUID } from "node:crypto";
+import { getStore } from "@netlify/blobs";
 
 export function fb() {
   if (!admin.apps.length) {
@@ -10,11 +10,11 @@ export function fb() {
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         privateKey: (process.env.FIREBASE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
       }),
-      storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
     });
   }
-  return { db: admin.firestore(), bucket: admin.storage().bucket() };
+  return { db: admin.firestore() };
 }
+export const midia = () => getStore("midia");
 
 // ---------- datas (fuso de São Paulo) ----------
 export function dataSP(offsetDias = 0) {
@@ -46,15 +46,11 @@ export async function dispararBg(path, body) {
 export const internoOk = (req) =>
   !!process.env.INTERNAL_SECRET && req.headers.get("x-internal") === process.env.INTERNAL_SECRET;
 
-// ---------- storage ----------
+// ---------- imagens (Netlify Blobs, servidas em /img/...) ----------
 export async function salvarArquivo(buf, path, contentType = "image/jpeg") {
-  const { bucket } = fb();
-  const token = randomUUID();
-  await bucket.file(path).save(buf, {
-    contentType,
-    metadata: { metadata: { firebaseStorageDownloadTokens: token } },
-  });
-  return `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
+  const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+  await midia().set(path, ab, { metadata: { contentType } });
+  return `${process.env.SITE_URL}/img/${path}`;
 }
 export async function baixarB64(url) {
   const r = await fetch(url);

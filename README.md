@@ -17,10 +17,9 @@ O painel (`/`) mostra o calendário, deixa editar textos, refazer artes, aprovar
 
 ### 1. Firebase (5 min)
 1. No [console do Firebase](https://console.firebase.google.com), use o projeto que você já tem ou crie um.
-2. Ative **Firestore** e **Storage**.
+2. Ative só o **Firestore** (plano gratuito Spark, sem upgrade). As imagens ficam no próprio Netlify (Netlify Blobs), não precisa do Storage.
 3. *Configurações do projeto → Contas de serviço → Gerar nova chave privada*. Baixa um JSON.
 4. Desse JSON você vai usar: `project_id`, `client_email`, `private_key`.
-5. Anote o nome do bucket do Storage (ex.: `seu-projeto.firebasestorage.app`).
 
 ### 2. Gemini / Nano Banana (3 min)
 1. Em [aistudio.google.com/apikey](https://aistudio.google.com/apikey), crie (ou use a do projeto do Veo) a chave.
@@ -81,7 +80,6 @@ if (msg?.from === APROVADOR) {
 | `FIREBASE_PROJECT_ID` | `project_id` do JSON |
 | `FIREBASE_CLIENT_EMAIL` | `client_email` do JSON |
 | `FIREBASE_PRIVATE_KEY` | `private_key` do JSON (cole inteiro, com `-----BEGIN…`) |
-| `FIREBASE_STORAGE_BUCKET` | ex.: `seu-projeto.firebasestorage.app` |
 | `ANTHROPIC_API_KEY` | Chave da Claude API |
 | `GEMINI_API_KEY` | Chave do Gemini |
 | `IG_TOKEN` | Token do usuário do sistema |
