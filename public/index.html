@@ -252,7 +252,8 @@ async function telaEmails() {
   let html = `<div class="row" style="justify-content:space-between;margin-bottom:12px"><h2>E-mails</h2><button class="btn red" id="novoEm">+ Novo e-mail</button></div>
   <div class="card"><h3>Contatos</h3><p><b>${cont.ativos}</b> recebem · ${cont.sairam} saíram da lista · ${cont.total} no total</p>
     <label>Importar planilha (CSV com colunas nome e email)</label><input type="file" id="csv" accept=".csv,text/csv"></div>`;
-  if (!lista.length) html += `<div class="card"><h3>Nenhum e-mail ainda</h3><p class="muted">Importe o calendário (1 e-mail por mês, às 10h, a partir de 20/10).</p><button class="btn red" id="impEm">Importar calendário de e-mails</button></div>`;
+  html += `<button class="btn red" id="impEm" style="margin-bottom:12px">Atualizar calendário de e-mails (mensal)</button>`;
+  if (!lista.length) html += `<div class="card"><h3>Nenhum e-mail ainda</h3><p class="muted">Importe o calendário (1 e-mail por mês, às 10h, a partir de 20/10).</p></div>`;
   for (const e of lista) html += `<div class="card post" data-id="${e.id}"><div class="dia"><small>${diaSemana(e.date)}</small><b>${e.date.slice(8)}/${e.date.slice(5, 7)}</b></div>
     <div class="info"><div class="row" style="gap:6px"><span class="chip">${MARCA[e.marca] || e.marca}</span> ${chipEm(e.status)}</div><div>${esc(e.copy?.assunto || e.tema)}</div>
     <span class="muted">${TIPO[e.tipo] || e.tipo}${e.enviados ? ` · ${e.enviados} enviados` : ""}</span></div>${e.capaUrl ? `<img class="thumb" style="aspect-ratio:16/9;width:90px;height:auto" src="${esc(e.capaUrl)}" alt="">` : ""}</div>`;
