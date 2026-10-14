@@ -145,10 +145,10 @@ async function telaPost() {
     <div class="row">
     <button class="btn red" id="gerar" ${ocupado ? "disabled" : ""}>${temArte ? "Refazer tudo" : "Gerar textos e artes"}</button>
     <button class="btn ghost" id="ajustar" ${ocupado || !temArte ? "disabled" : ""}>Pedir ajuste</button>
-    <button class="btn ghost" id="enviar" ${ocupado || !temArte ? "disabled" : ""}>Mandar no WhatsApp</button>
+    <button class="btn ghost" id="enviar" ${ocupado || !temArte ? "disabled" : ""}>Mandar no Telegram</button>
     <button class="btn ghost" id="aprovar" ${ocupado || !temArte ? "disabled" : ""}>Aprovar</button>
     <button class="btn ghost" id="publicar" ${ocupado || !temArte ? "disabled" : ""}>Publicar agora</button></div>
-    <p class="muted">Gerar manda automaticamente para aprovação no WhatsApp ao terminar.</p></div>
+    <p class="muted">Gerar manda automaticamente para aprovação no Telegram ao terminar.</p></div>
 
   ${(p.slides?.length || p.story) ? `<div class="card"><h3>Artes</h3><div class="grid">${artes}</div></div>` : ""}
 
@@ -185,7 +185,7 @@ async function telaPost() {
   if ($("#salvar2")) $("#salvar2").onclick = $("#salvar").onclick;
   $("#gerar").onclick = () => { if (temArte && !confirm("Refazer textos e todas as artes?")) return; acao(() => api(`posts/${p.id}/gerar`, { method: "POST", body: {} }), "Gerando… leva alguns minutos"); };
   $("#ajustar").onclick = () => { const t = prompt("O que ajustar? (ex.: no slide 2 troca o título por …)"); if (t) acao(() => api(`posts/${p.id}/gerar`, { method: "POST", body: { instrucao: t } }), "Ajustando…"); };
-  $("#enviar").onclick = () => acao(() => api(`posts/${p.id}/enviar`, { method: "POST", body: {} }), "Enviado no WhatsApp");
+  $("#enviar").onclick = () => acao(() => api(`posts/${p.id}/enviar`, { method: "POST", body: {} }), "Enviado no Telegram");
   $("#aprovar").onclick = () => acao(() => api(`posts/${p.id}/aprovar`, { method: "POST", body: {} }), "Aprovado");
   $("#publicar").onclick = () => { if (confirm("Publicar no Instagram agora?")) acao(() => api(`posts/${p.id}/publicar`, { method: "POST", body: {} }), "Publicando…"); };
   $("#excluir").onclick = () => { if (confirm("Excluir este post?")) acao(async () => { await api("posts/" + p.id, { method: "DELETE" }); atual = null; }, "Excluído"); };
@@ -203,9 +203,9 @@ async function telaConfig() {
   const m = $("#m");
   try { cfg = await api("config"); } catch (e) { m.innerHTML = `<div class="alert err">${esc(e.message)}</div>`; return; }
   m.innerHTML = `<h2>Ajustes</h2>
-  <div class="card"><h3>Aprovação</h3>
-    <label>WhatsApp de quem aprova (com DDI e DDD, só números)</label><input id="aprovador" inputmode="numeric" placeholder="5519999999999" value="${esc(cfg.aprovador)}">
-    <p class="muted">Gera às 18h da véspera, manda pra aprovação e publica às 8h no dia.</p></div>
+  <div class="card"><h3>Aprovação pelo Telegram</h3>
+    <p>${cfg.telegramChatId ? "✅ Telegram conectado." : "⚠️ Telegram não conectado: abra o seu bot no Telegram e mande /start."}</p>
+    <p class="muted">Gera às 18h da véspera, manda as artes no Telegram com os botões Aprovar/Ajustar e publica às 8h no dia.</p></div>
   <div class="card"><h3>Dados da marca</h3>
     <label>WhatsApp que aparece nas artes</label><input id="whatsappExibido" value="${esc(cfg.whatsappExibido)}">
     <label>Site</label><input id="site" value="${esc(cfg.site)}">
@@ -221,7 +221,7 @@ async function telaConfig() {
     <textarea id="proibidas" style="min-height:160px">${esc((cfg.proibidas || []).join("\n"))}</textarea></div>
   <button class="btn red" id="salvarCfg">Salvar ajustes</button> <button class="btn ghost" id="sair">Sair</button>`;
   $("#salvarCfg").onclick = async () => {
-    const body = { aprovador: $("#aprovador").value.replace(/\D/g, ""), whatsappExibido: $("#whatsappExibido").value, site: $("#site").value, instagram: $("#instagram").value,
+    const body = { whatsappExibido: $("#whatsappExibido").value, site: $("#site").value, instagram: $("#instagram").value,
       hashtags: $("#hashtags").value, estilo: $("#estilo").value, proibidas: $("#proibidas").value.split("\n").map((x) => x.trim()).filter(Boolean) };
     try { await api("config", { method: "PUT", body }); toast("Ajustes salvos"); } catch (e) { toast(e.message); }
   };

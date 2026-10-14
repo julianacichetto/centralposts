@@ -1,11 +1,11 @@
 // Função em segundo plano: publica o feed (carrossel ou foto) e o story no Instagram.
-import { internoOk, lerPost, salvarPost, lerConfig } from "../lib/base.mjs";
-import { publicarFeed, publicarStory, waTexto } from "../lib/meta.mjs";
+import { internoOk, lerPost, salvarPost } from "../lib/base.mjs";
+import { publicarFeed, publicarStory } from "../lib/meta.mjs";
+import { avisar } from "../lib/telegram.mjs";
 
 export default async (req) => {
   if (!internoOk(req)) return new Response("proibido", { status: 403 });
   const { postId } = await req.json();
-  const cfg = await lerConfig().catch(() => ({}));
   let post;
   try {
     post = await lerPost(postId);
@@ -22,11 +22,11 @@ export default async (req) => {
       avisoStory = `\n⚠️ O story falhou: ${e.message}`;
     }
     await salvarPost(postId, { status: "publicado", igStoryId: storyId, publicadoEm: new Date().toISOString() });
-    if (cfg.aprovador) await waTexto(cfg.aprovador, `✅ Publicado no Instagram: ${post.tema}${storyId ? " (feed + story)" : ""}${avisoStory}`).catch(() => {});
+    await avisar(`✅ Publicado no Instagram: ${post.tema}${storyId ? " (feed + story)" : ""}${avisoStory}`).catch(() => {});
   } catch (e) {
     console.error(e);
     await salvarPost(postId, { status: "erro", erro: String(e.message || e) }).catch(() => {});
-    if (cfg.aprovador) await waTexto(cfg.aprovador, `⚠️ Não consegui publicar "${post?.tema || postId}": ${e.message}`).catch(() => {});
+    await avisar(`⚠️ Não consegui publicar "${post?.tema || postId}": ${e.message}`).catch(() => {});
   }
   return new Response("ok");
 };

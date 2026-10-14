@@ -2,7 +2,7 @@
 // Corpo: { postId, instrucao?, apenasImagens?, slide?: número | "story", ajusteImagem?, enviar? }
 import { internoOk, lerPost, salvarPost, lerConfig, baixarB64, salvarArquivo } from "../lib/base.mjs";
 import { gerarCopy, revisarCopy, acharProibidas, promptImagem, gerarImagem } from "../lib/criacao.mjs";
-import { enviarParaAprovacao, waTexto } from "../lib/meta.mjs";
+import { enviarParaAprovacao, avisar } from "../lib/telegram.mjs";
 
 export default async (req) => {
   if (!internoOk(req)) return new Response("proibido", { status: 403 });
@@ -59,12 +59,17 @@ export default async (req) => {
 
     // 3) Aprovação
     await salvarPost(postId, { status: "aguardando", progresso: null, geradoEm: new Date().toISOString() });
-    if (enviar) await enviarParaAprovacao({ ...post, id: postId }, cfg);
+    if (enviar) {
+      try {
+        await enviarParaAprovacao({ ...post, id: postId }, cfg);
+      } catch (e) {
+        await salvarPost(postId, { erro: "Artes prontas, mas o aviso não foi enviado: " + e.message });
+      }
+    }
   } catch (e) {
     console.error(e);
     await salvarPost(postId, { status: "erro", progresso: null, erro: String(e.message || e) }).catch(() => {});
-    const cfg = await lerConfig().catch(() => null);
-    if (cfg?.aprovador) await waTexto(cfg.aprovador, `⚠️ Falha ao gerar o post "${post?.tema || postId}": ${e.message}`).catch(() => {});
+    await avisar(`⚠️ Falha ao gerar o post "${post?.tema || postId}": ${e.message}`).catch(() => {});
   }
   return new Response("ok");
 };

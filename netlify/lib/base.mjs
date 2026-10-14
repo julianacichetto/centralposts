@@ -68,6 +68,7 @@ export const CONFIG_PADRAO = {
     "bold heavy sans-serif typography in black with red accents, red rounded banners with white text, red circular icon badges. " +
     "Clean composition with generous margins, high-end and trustworthy.",
   aprovador: "",
+  telegramChatId: "",
   whatsappExibido: "(19) 98804-2330",
   site: "hfformulas.com.br",
   instagram: "",

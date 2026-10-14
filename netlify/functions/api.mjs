@@ -1,6 +1,6 @@
 // API do painel. Todas as rotas exigem o cabeçalho x-senha = PANEL_PASSWORD.
 import { fb, json, lerConfig, salvarConfig, lerPost, salvarPost, dispararBg, salvarArquivo, CONFIG_PADRAO } from "../lib/base.mjs";
-import { enviarParaAprovacao } from "../lib/meta.mjs";
+import { enviarParaAprovacao } from "../lib/telegram.mjs";
 import { aprovarPost } from "../lib/acoes.mjs";
 import { CALENDARIO_INICIAL } from "../lib/calendario.mjs";
 
