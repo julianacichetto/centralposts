@@ -1,11 +1,14 @@
 // API do painel. Todas as rotas exigem o cabeçalho x-senha = PANEL_PASSWORD.
 import { fb, json, lerConfig, salvarConfig, lerPost, salvarPost, dispararBg, salvarArquivo, CONFIG_PADRAO } from "../lib/base.mjs";
 import { enviarParaAprovacao } from "../lib/telegram.mjs";
-import { aprovarPost } from "../lib/acoes.mjs";
+import { aprovarPost, lerEmail, aprovarEmail } from "../lib/acoes.mjs";
+import { CALENDARIO_EMAILS, importarContatos, resumoContatos, renderEmail, linkPreview } from "../lib/emailmkt.mjs";
+import { enviarEmailAprovacao } from "../lib/telegram.mjs";
 import { CALENDARIO_INICIAL } from "../lib/calendario.mjs";
 
 const CAMPOS_POST = ["date", "formato", "tema", "gancho", "notas", "status", "slides", "story", "legenda"];
 const CAMPOS_CFG = Object.keys(CONFIG_PADRAO).filter((k) => !["pendente", "aguardandoAjuste"].includes(k));
+const CAMPOS_EMAIL = ["date", "marca", "tipo", "tema", "notas", "status", "copy"];
 const pick = (o, ks) => Object.fromEntries(ks.filter((k) => o[k] !== undefined).map((k) => [k, o[k]]));
 
 export default async (req) => {
@@ -43,6 +46,57 @@ export default async (req) => {
         if (existe.empty) { await db.collection("posts").add({ ...p, criadoEm: new Date().toISOString() }); n++; }
       }
       return json({ importados: n });
+    }
+
+    // ----- contatos -----
+    if (partes[0] === "contatos") {
+      if (m === "GET") return json(await resumoContatos());
+      if (m === "POST") return json(await importarContatos(String(corpo.csv || "")));
+    }
+
+    // ----- e-mails -----
+    if (partes[0] === "emails") {
+      const id = partes[1], acao = partes[2];
+      if (id === "importar" && m === "POST") {
+        let n = 0;
+        for (const e of CALENDARIO_EMAILS) {
+          const ex = await db.collection("emails").where("date", "==", e.date).limit(1).get();
+          if (ex.empty) { await db.collection("emails").add({ ...e, criadoEm: new Date().toISOString() }); n++; }
+        }
+        return json({ importados: n });
+      }
+      if (!id && m === "GET") {
+        const q = await db.collection("emails").orderBy("date").get();
+        return json(q.docs.map((d) => ({ id: d.id, ...d.data() })));
+      }
+      if (!id && m === "POST") {
+        const novo = { status: "rascunho", ...pick(corpo, ["date", "marca", "tipo", "tema", "notas"]), criadoEm: new Date().toISOString() };
+        const ref = await db.collection("emails").add(novo);
+        return json({ id: ref.id, ...novo });
+      }
+      if (id && !acao) {
+        if (m === "GET") { const e = await lerEmail(id); return json({ ...e, preview: e.copy ? linkPreview(id) : null }); }
+        if (m === "PUT") { await db.doc(`emails/${id}`).set(pick(corpo, CAMPOS_EMAIL), { merge: true }); return json(await lerEmail(id)); }
+        if (m === "DELETE") { await db.doc(`emails/${id}`).delete(); return json({ ok: true }); }
+      }
+      if (id && m === "POST") {
+        const e = await lerEmail(id);
+        if (acao === "gerar") {
+          await db.doc(`emails/${id}`).set({ status: "gerando", erro: null }, { merge: true });
+          await dispararBg("/bg/emails-gerar", { emailId: id, ...pick(corpo, ["instrucao", "soImagem"]) });
+          return json({ ok: true });
+        }
+        if (acao === "aprovar") return json({ ok: true, msg: await aprovarEmail(e) });
+        if (acao === "telegram") { await enviarEmailAprovacao(e); return json({ ok: true }); }
+        if (acao === "enviar") { await dispararBg("/bg/emails-enviar", { emailId: id, tema: e.tema }); return json({ ok: true }); }
+        if (acao === "teste") {
+          const para = process.env.EMAIL_AVISO || process.env.EMAIL_RESPOSTA || "hfformulas@gmail.com";
+          const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { authorization: `Bearer ${process.env.RESEND_API_KEY}`, "content-type": "application/json" },
+            body: JSON.stringify({ from: process.env.EMAIL_REMETENTE_MKT || "Grupo HF <contato@hfformulas.com.br>", to: [para], subject: "[TESTE] " + (e.copy?.assunto || e.tema), html: renderEmail(e, { nome: "Juliana", descadastro: "#" }) }) });
+          if (!r.ok) throw new Error("Resend: " + (await r.text()));
+          return json({ ok: true, msg: "Teste enviado para " + para });
+        }
+      }
     }
 
     // ----- posts -----

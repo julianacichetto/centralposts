@@ -108,3 +108,13 @@ Opcionais: `META_APP_SECRET` (valida a assinatura do webhook), `GRAPH_VERSION` (
 - **Custos aproximados por post**: centavos no Claude + uma imagem do Nano Banana por slide (carrossel = 5 + story).
 - **Fotos reais**: os posts de bastidores ficam melhores com fotos de verdade. Por enquanto a IA gera a cena.
 - Horários fixos em `netlify/functions/agenda-gerar.mjs` (18h) e `agenda-publicar.mjs` (8h), em UTC.
+
+---
+
+## E-mail marketing (aba "E-mails")
+
+- **Envio**: Resend, saindo de `contato@hfformulas.com.br` (domínio verificado na Hostinger). Respostas dos clientes vão para `hfformulas@gmail.com`.
+- **Calendário**: terças às 10h. Às 18h da véspera gera texto + capa e manda no Telegram (✅ Aprovar / ✏️ Ajustar, com link da prévia).
+- **Aquecimento**: no máximo 1.300 e-mails por dia (Ajustes → limite). O restante sai sozinho no dia seguinte às 10h. Depois de 2–3 semanas, suba para 5.000.
+- **Descadastro**: todo e-mail tem "Clique aqui para não receber mais" + botão de descadastro do Gmail. Quem sai nunca volta, nem reimportando a planilha.
+- **Variáveis novas no Netlify**: `RESEND_API_KEY` (já cadastrada para os avisos) e opcionais `EMAIL_REMETENTE_MKT` (padrão `Grupo HF <contato@hfformulas.com.br>`) e `EMAIL_RESPOSTA` (padrão `hfformulas@gmail.com`).

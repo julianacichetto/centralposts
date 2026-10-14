@@ -18,3 +18,28 @@ export async function ajustarPost(post, instrucao) {
   await dispararBg("/bg/gerar", { postId: post.id, instrucao });
   return "🔄 Ajustando. Te mando a nova versão em alguns minutos.";
 }
+
+// ---------- e-mails ----------
+import { fb } from "./base.mjs";
+export async function lerEmail(id) {
+  const { db } = fb();
+  const s = await db.doc(`emails/${id}`).get();
+  if (!s.exists) throw new Error("E-mail não encontrado");
+  return { id: s.id, ...s.data() };
+}
+export async function aprovarEmail(em) {
+  const { db } = fb();
+  await db.doc(`emails/${em.id}`).set({ status: "aprovado", aprovadoEm: new Date().toISOString() }, { merge: true });
+  await salvarConfig({ pendente: null, aguardandoAjuste: false, pendenteTipo: null });
+  const hoje = dataSP(0);
+  if (em.date < hoje || (em.date === hoje && horaSP() >= 10)) {
+    await dispararBg("/bg/emails-enviar", { emailId: em.id, tema: em.tema });
+    return "✅ E-mail aprovado! Como já passou das 10h, estou enviando agora.";
+  }
+  return `✅ E-mail aprovado! Sai dia ${dataBR(em.date)} às 10h.`;
+}
+export async function ajustarEmail(em, instrucao) {
+  await salvarConfig({ aguardandoAjuste: false });
+  await dispararBg("/bg/emails-gerar", { emailId: em.id, instrucao });
+  return "🔄 Ajustando o e-mail. Te mando a nova versão em alguns minutos.";
+}

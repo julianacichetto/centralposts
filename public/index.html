@@ -56,7 +56,7 @@ const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const DIAS = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];
 const STATUS = { rascunho: "Rascunho", pausado: "Precisa de info", gerando: "Gerando…", aguardando: "Aguardando aprovação", aprovado: "Aprovado", publicando: "Publicando…", publicado: "Publicado", erro: "Erro" };
 let senha = ""; try { senha = localStorage.getItem("hf_senha") || ""; } catch (e) {}
-let aba = "calendario", posts = [], cfg = null, atual = null, timer = null;
+let aba = "calendario", posts = [], cfg = null, atual = null, atualEmail = null, timer = null;
 
 function toast(msg) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 3500); }
 async function api(path, opts = {}) {
@@ -81,10 +81,11 @@ function render() {
     return;
   }
   app.innerHTML = `<header><img src="/brand/logo.png" alt="HF Fórmulas"><h1>Central de Posts</h1>
-    <nav><button data-a="calendario" class="${aba === "calendario" ? "on" : ""}">Calendário</button><button data-a="config" class="${aba === "config" ? "on" : ""}">Ajustes</button></nav></header><main id="m"></main>`;
-  app.querySelectorAll("nav button").forEach((b) => (b.onclick = () => { aba = b.dataset.a; atual = null; render(); }));
+    <nav><button data-a="calendario" class="${aba === "calendario" ? "on" : ""}">Calendário</button><button data-a="emails" class="${aba === "emails" ? "on" : ""}">E-mails</button><button data-a="config" class="${aba === "config" ? "on" : ""}">Ajustes</button></nav></header><main id="m"></main>`;
+  app.querySelectorAll("nav button").forEach((b) => (b.onclick = () => { aba = b.dataset.a; atual = null; atualEmail = null; render(); }));
   if (atual) return telaPost();
-  aba === "config" ? telaConfig() : telaCalendario();
+  if (atualEmail) return telaEmail();
+  aba === "config" ? telaConfig() : aba === "emails" ? telaEmails() : telaCalendario();
 }
 
 // ---------- calendário ----------
@@ -203,6 +204,9 @@ async function telaConfig() {
   const m = $("#m");
   try { cfg = await api("config"); } catch (e) { m.innerHTML = `<div class="alert err">${esc(e.message)}</div>`; return; }
   m.innerHTML = `<h2>Ajustes</h2>
+  <div class="card"><h3>E-mail marketing</h3>
+    <label>Limite de envios por dia (aquecimento do domínio)</label><input id="emailLimiteDia" type="number" inputmode="numeric" value="${esc(cfg.emailLimiteDia || 1300)}">
+    <p class="muted">Comece com 1300. Depois de 2–3 semanas sem problemas, pode subir para 5000.</p></div>
   <div class="card"><h3>Aprovação pelo Telegram</h3>
     <p>${cfg.telegramChatId ? "✅ Telegram conectado." : "⚠️ Telegram não conectado: abra o seu bot no Telegram e mande /start."}</p>
     <p class="muted">Gera às 18h da véspera, manda as artes no Telegram com os botões Aprovar/Ajustar e publica às 8h no dia.</p></div>
@@ -221,7 +225,7 @@ async function telaConfig() {
     <textarea id="proibidas" style="min-height:160px">${esc((cfg.proibidas || []).join("\n"))}</textarea></div>
   <button class="btn red" id="salvarCfg">Salvar ajustes</button> <button class="btn ghost" id="sair">Sair</button>`;
   $("#salvarCfg").onclick = async () => {
-    const body = { whatsappExibido: $("#whatsappExibido").value, site: $("#site").value, instagram: $("#instagram").value,
+    const body = { emailLimiteDia: Number($("#emailLimiteDia").value) || 1300, whatsappExibido: $("#whatsappExibido").value, site: $("#site").value, instagram: $("#instagram").value,
       hashtags: $("#hashtags").value, estilo: $("#estilo").value, proibidas: $("#proibidas").value.split("\n").map((x) => x.trim()).filter(Boolean) };
     try { await api("config", { method: "PUT", body }); toast("Ajustes salvos"); } catch (e) { toast(e.message); }
   };
@@ -233,6 +237,81 @@ async function telaConfig() {
     try { await api("upload", { method: "POST", body: { tipo, b64, mime: f.type } }); toast("Imagem enviada"); render(); } catch (err) { toast(err.message); }
   };
   $("#upLogo").onchange = upload("logo"); $("#upEstilo").onchange = upload("estilo");
+}
+
+// ---------- e-mails ----------
+const MARCA = { formulas: "HF Fórmulas", nutricao: "HF Nutrição", sports: "HF Sports", todas: "Grupo HF (3 marcas)" };
+const TIPO = { boasvindas: "Boas-vindas", educativo: "Educativo", oferta: "Oferta" };
+const STATUS_EM = { ...STATUS, enviando: "Enviando em lotes", enviado: "Enviado" };
+const chipEm = (s) => `<span class="chip st-${s === "enviado" ? "publicado" : s === "enviando" ? "publicando" : s}">${STATUS_EM[s] || s}</span>`;
+
+async function telaEmails() {
+  const m = $("#m"); m.innerHTML = `<p class="muted">Carregando…</p>`;
+  let lista, cont;
+  try { [lista, cont] = await Promise.all([api("emails"), api("contatos")]); } catch (e) { m.innerHTML = `<div class="alert err">${esc(e.message)}</div>`; return; }
+  let html = `<div class="row" style="justify-content:space-between;margin-bottom:12px"><h2>E-mails</h2><button class="btn red" id="novoEm">+ Novo e-mail</button></div>
+  <div class="card"><h3>Contatos</h3><p><b>${cont.ativos}</b> recebem · ${cont.sairam} saíram da lista · ${cont.total} no total</p>
+    <label>Importar planilha (CSV com colunas nome e email)</label><input type="file" id="csv" accept=".csv,text/csv"></div>`;
+  if (!lista.length) html += `<div class="card"><h3>Nenhum e-mail ainda</h3><p class="muted">Importe o calendário (terças às 10h, de 20/10 a 01/12).</p><button class="btn red" id="impEm">Importar calendário de e-mails</button></div>`;
+  for (const e of lista) html += `<div class="card post" data-id="${e.id}"><div class="dia"><small>${diaSemana(e.date)}</small><b>${e.date.slice(8)}/${e.date.slice(5, 7)}</b></div>
+    <div class="info"><div class="row" style="gap:6px"><span class="chip">${MARCA[e.marca] || e.marca}</span> ${chipEm(e.status)}</div><div>${esc(e.copy?.assunto || e.tema)}</div>
+    <span class="muted">${TIPO[e.tipo] || e.tipo}${e.enviados ? ` · ${e.enviados} enviados` : ""}</span></div>${e.capaUrl ? `<img class="thumb" style="aspect-ratio:16/9;width:90px;height:auto" src="${esc(e.capaUrl)}" alt="">` : ""}</div>`;
+  m.innerHTML = html;
+  m.querySelectorAll(".post").forEach((el) => (el.onclick = () => { atualEmail = el.dataset.id; render(); }));
+  $("#novoEm").onclick = async () => {
+    const date = prompt("Data (AAAA-MM-DD):"); if (!date) return;
+    const tema = prompt("Tema do e-mail:"); if (!tema) return;
+    try { const e = await api("emails", { method: "POST", body: { date, tema, marca: "todas", tipo: "educativo" } }); atualEmail = e.id; render(); } catch (err) { toast(err.message); }
+  };
+  if ($("#impEm")) $("#impEm").onclick = async () => { try { const r = await api("emails/importar", { method: "POST", body: {} }); toast(`${r.importados} e-mails no calendário`); render(); } catch (e) { toast(e.message); } };
+  $("#csv").onchange = async (ev) => {
+    const f = ev.target.files[0]; if (!f) return;
+    toast("Importando…");
+    try { const r = await api("contatos", { method: "POST", body: { csv: await f.text() } }); toast(`${r.importados} contatos importados`); render(); } catch (e) { toast(e.message); }
+  };
+}
+
+async function telaEmail() {
+  const m = $("#m");
+  let e; try { e = await api("emails/" + atualEmail); } catch (err) { m.innerHTML = `<div class="alert err">${esc(err.message)}</div>`; return; }
+  const ocupado = e.status === "gerando";
+  const pronto = !!e.copy;
+  const opt = (o, v) => Object.entries(o).map(([k, t]) => `<option value="${k}" ${v === k ? "selected" : ""}>${t}</option>`).join("");
+  m.innerHTML = `<button class="btn ghost" id="voltar">← Voltar</button>
+  <div class="card" style="margin-top:12px">
+    <div class="row" style="gap:6px"><span class="chip">${MARCA[e.marca] || e.marca}</span> ${chipEm(e.status)} ${e.enviados ? `<span class="muted">${e.enviados} enviados</span>` : ""}</div>
+    <h2 style="margin-top:10px">${diaSemana(e.date)} ${e.date.slice(8)}/${e.date.slice(5, 7)} · ${esc(e.tema)}</h2>
+    ${e.erro ? `<div class="alert err">${esc(e.erro)}</div>` : ""}
+    <div class="row">
+      <button class="btn red" id="gerar" ${ocupado ? "disabled" : ""}>${pronto ? "Refazer e-mail" : "Gerar e-mail"}</button>
+      <button class="btn ghost" id="ajustar" ${ocupado || !pronto ? "disabled" : ""}>Pedir ajuste</button>
+      <button class="btn ghost" id="teste" ${ocupado || !pronto ? "disabled" : ""}>Enviar teste p/ mim</button>
+      <button class="btn ghost" id="tg" ${ocupado || !pronto ? "disabled" : ""}>Mandar no Telegram</button>
+      <button class="btn ghost" id="aprovar" ${ocupado || !pronto ? "disabled" : ""}>Aprovar</button>
+      <button class="btn ghost" id="enviar" ${ocupado || !pronto ? "disabled" : ""}>Enviar agora</button></div>
+    ${ocupado ? `<p class="muted">Gerando… leva 1–2 minutos.</p>` : ""}</div>
+  ${e.preview ? `<div class="card"><h3>Prévia</h3><p><a href="${esc(e.preview)}" target="_blank">Abrir o e-mail em tela cheia</a></p><iframe src="${esc(e.preview)}" style="width:100%;height:640px;border:1px solid var(--line);border-radius:10px;background:#fff"></iframe></div>` : ""}
+  <div class="card"><h3>Dados do e-mail</h3>
+    <label>Data</label><input id="date" type="date" value="${esc(e.date)}">
+    <label>Marca</label><select id="marca">${opt(MARCA, e.marca)}</select>
+    <label>Tipo</label><select id="tipo">${opt(TIPO, e.tipo)}</select>
+    <label>Tema</label><input id="tema" value="${esc(e.tema)}">
+    <label>Notas para a IA (oferta, cupom, validade…)</label><textarea id="notas">${esc(e.notas)}</textarea>
+    <label>Status</label><select id="status">${opt(STATUS_EM, e.status)}</select>
+    ${pronto ? `<label>Assunto</label><input id="assunto" value="${esc(e.copy.assunto)}">` : ""}
+    <div class="row" style="margin-top:14px"><button class="btn" id="salvar">Salvar</button><button class="btn ghost" id="excluir" style="color:#A00">Excluir</button></div></div>`;
+  $("#voltar").onclick = () => { atualEmail = null; render(); };
+  const acao = async (fn, msg) => { try { const r = await fn(); toast(r?.msg || msg); render(); } catch (err) { toast(err.message); } };
+  const dados = () => { const b = { date: $("#date").value, marca: $("#marca").value, tipo: $("#tipo").value, tema: $("#tema").value, notas: $("#notas").value, status: $("#status").value }; if (pronto) b.copy = { ...e.copy, assunto: $("#assunto").value }; return b; };
+  $("#salvar").onclick = () => acao(() => api("emails/" + e.id, { method: "PUT", body: dados() }), "Salvo");
+  $("#gerar").onclick = () => { if (pronto && !confirm("Refazer o e-mail?")) return; acao(() => api(`emails/${e.id}/gerar`, { method: "POST", body: {} }), "Gerando…"); };
+  $("#ajustar").onclick = () => { const t = prompt("O que ajustar? (ex.: muda o assunto, troca a imagem)"); if (t) acao(() => api(`emails/${e.id}/gerar`, { method: "POST", body: { instrucao: t } }), "Ajustando…"); };
+  $("#teste").onclick = () => acao(() => api(`emails/${e.id}/teste`, { method: "POST", body: {} }), "Teste enviado");
+  $("#tg").onclick = () => acao(() => api(`emails/${e.id}/telegram`, { method: "POST", body: {} }), "Enviado no Telegram");
+  $("#aprovar").onclick = () => acao(() => api(`emails/${e.id}/aprovar`, { method: "POST", body: {} }), "Aprovado");
+  $("#enviar").onclick = () => { if (confirm("Enviar para a lista agora? (respeita o limite diário)")) acao(() => api(`emails/${e.id}/enviar`, { method: "POST", body: {} }), "Enviando…"); };
+  $("#excluir").onclick = () => { if (confirm("Excluir este e-mail?")) acao(async () => { await api("emails/" + e.id, { method: "DELETE" }); atualEmail = null; }, "Excluído"); };
+  if (ocupado) timer = setInterval(async () => { try { const n = await api("emails/" + e.id); if (n.status !== e.status) render(); } catch (x) {} }, 5000);
 }
 
 render();
