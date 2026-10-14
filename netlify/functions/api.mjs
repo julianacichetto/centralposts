@@ -59,6 +59,9 @@ export default async (req) => {
       const id = partes[1], acao = partes[2];
       if (id === "importar" && m === "POST") {
         let n = 0;
+        // Substitui o calendário: apaga os que ainda não foram mexidos (rascunho/pausado sem texto gerado)
+        const todos = await db.collection("emails").get();
+        for (const d of todos.docs) if (["rascunho", "pausado"].includes(d.get("status")) && !d.get("copy")) await d.ref.delete();
         for (const e of CALENDARIO_EMAILS) {
           const ex = await db.collection("emails").where("date", "==", e.date).limit(1).get();
           if (ex.empty) { await db.collection("emails").add({ ...e, criadoEm: new Date().toISOString() }); n++; }

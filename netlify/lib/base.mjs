@@ -69,7 +69,7 @@ export const CONFIG_PADRAO = {
     "Clean composition with generous margins, high-end and trustworthy.",
   aprovador: "",
   telegramChatId: "",
-  emailLimiteDia: 1300,
+  emailLimiteDia: 100,
   whatsappExibido: "(19) 98804-2330",
   site: "hfformulas.com.br",
   instagram: "",

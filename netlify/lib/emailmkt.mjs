@@ -11,15 +11,14 @@ export const MARCAS = {
 export const WHATS = "https://wa.me/5519988042330";
 const LEGAL = "HF Nutrição Esportiva Ltda · CNPJ 50.827.813/0001-28 · Farmacêutico responsável: Fabrício Chiaparini · CRF 41.828";
 
-// ---------- calendário inicial (terças, 10h) ----------
+// ---------- calendário inicial (1 por mês, terça às 10h; plano grátis do Resend = 100 envios/dia) ----------
 export const CALENDARIO_EMAILS = [
   ["2026-10-20", "todas", "boasvindas", "Boas-vindas: a partir de agora você recebe novidades, promoções e conteúdos das marcas HF (Fórmulas, Nutrição e Sports)"],
-  ["2026-10-27", "formulas", "educativo", "Manipulado x industrializado: por que a fórmula sob medida faz diferença"],
-  ["2026-11-03", "nutricao", "educativo", "Suplementos: como escolher e usar do jeito certo (com orientação profissional)"],
-  ["2026-11-10", "formulas", "educativo", "Novembro Azul: cuidado com a saúde do homem e a importância do check-up"],
-  ["2026-11-17", "sports", "oferta", "HF Sports: conheça a linha de roupas fitness", "PREENCHER: peças em destaque / condição especial"],
   ["2026-11-24", "todas", "oferta", "Black Friday Grupo HF", "PREENCHER: ofertas de cada marca e validade", "pausado"],
-  ["2026-12-01", "formulas", "educativo", "Como guardar seus manipulados no verão (calor e umidade)"],
+  ["2026-12-15", "todas", "oferta", "Natal Grupo HF: presentes de saúde e bem-estar das 3 marcas", "PREENCHER: kits/condições de Natal e prazo de envio"],
+  ["2027-01-19", "formulas", "educativo", "Ano novo, rotina nova: como manter seus cuidados em dia com os manipulados"],
+  ["2027-02-23", "sports", "oferta", "HF Sports: nova coleção fitness", "PREENCHER: peças em destaque / condição especial"],
+  ["2027-03-23", "nutricao", "educativo", "Suplementos: como escolher e usar do jeito certo (com orientação profissional)"],
 ].map(([date, marca, tipo, tema, notas = "", status = "rascunho"]) => ({ date, marca, tipo, tema, notas, status }));
 
 // ---------- tokens ----------
@@ -167,7 +166,7 @@ export async function enviarLote(emId) {
   const cfg = await lerConfig();
   const hoje = dataSP(0);
   const jaHoje = cfg.envioHoje?.data === hoje ? cfg.envioHoje.qtd : 0;
-  const limite = Math.max(0, Number(cfg.emailLimiteDia || 1300) - jaHoje);
+  const limite = Math.max(0, Number(cfg.emailLimiteDia || 100) - jaHoje);
   if (!limite) return { enviados: 0, fim: false, motivo: "limite diário atingido" };
 
   let cursor = em.cursor || "";

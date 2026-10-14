@@ -11,10 +11,11 @@ export default async () => {
   }
   if (h === 10) {
     const hoje = dataSP(0);
-    const q = await db.collection("emails").where("date", "<=", hoje).get();
+    const q = await db.collection("emails").where("date", "<=", hoje).orderBy("date").get();
+    let disparou = false; // um por vez: o limite diário é dividido por ordem de data
     for (const d of q.docs) {
       const s = d.get("status");
-      if (s === "aprovado" || s === "enviando") await dispararBg("/bg/emails-enviar", { emailId: d.id, tema: d.get("tema") });
+      if ((s === "aprovado" || s === "enviando") && !disparou) { disparou = true; await dispararBg("/bg/emails-enviar", { emailId: d.id, tema: d.get("tema") }); }
       else if (s === "aguardando" && d.get("date") === hoje)
         await avisar(`⏰ O e-mail de hoje (${d.get("tema")}) ainda não foi aprovado. Toque em ✅ Aprovar que ele sai na hora.`).catch(() => {});
     }
