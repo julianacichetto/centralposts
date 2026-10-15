@@ -11,7 +11,7 @@ export default async () => {
   }
   if (h === 10) {
     const hoje = dataSP(0);
-    const q = await db.collection("emails").where("date", "<=", hoje).orderBy("date").get();
+    const q = await db.collection("emails").where("date", "==", hoje).get();
     let disparou = false; // um por vez: o limite diário é dividido por ordem de data
     for (const d of q.docs) {
       const s = d.get("status");
@@ -23,4 +23,4 @@ export default async () => {
   return new Response("ok");
 };
 
-export const config = { schedule: "0 * * * *" };
+export const config = { schedule: "0 13,21 * * *" };
