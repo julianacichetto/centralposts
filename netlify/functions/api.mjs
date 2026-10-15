@@ -1,5 +1,5 @@
 // API do painel. Todas as rotas exigem o cabeçalho x-senha = PANEL_PASSWORD.
-import { fb, json, lerConfig, salvarConfig, lerPost, salvarPost, dispararBg, salvarArquivo, CONFIG_PADRAO } from "../lib/base.mjs";
+import { fb, json, lerConfig, salvarConfig, lerPost, salvarPost, dispararBg, salvarArquivo, CONFIG_PADRAO, dataSP } from "../lib/base.mjs";
 import { enviarParaAprovacao } from "../lib/telegram.mjs";
 import { aprovarPost, lerEmail, aprovarEmail } from "../lib/acoes.mjs";
 import { CALENDARIO_EMAILS, importarContatos, resumoContatos, renderEmail, linkPreview } from "../lib/emailmkt.mjs";
@@ -69,7 +69,7 @@ export default async (req) => {
         return json({ importados: n });
       }
       if (!id && m === "GET") {
-        const q = await db.collection("emails").orderBy("date").get();
+        const q = await db.collection("emails").where("date", ">=", dataSP(-30)).where("date", "<=", dataSP(90)).orderBy("date").get();
         return json(q.docs.map((d) => ({ id: d.id, ...d.data() })));
       }
       if (!id && m === "POST") {
