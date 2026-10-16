@@ -1,4 +1,4 @@
-// Textos (Claude API) e artes (Nano Banana / Gemini API).
+// Textos (Claude API) e artes (OpenAI gpt-image-1, com fallback Nano Banana).
 
 const REGRAS = `Você é o redator de redes sociais da HF Fórmulas, farmácia de manipulação no Brasil.
 Escreva em português do Brasil, tom próximo, claro e profissional.
@@ -94,7 +94,7 @@ export function acharProibidas(copy, lista) {
   });
 }
 
-// ---------- Nano Banana ----------
+// ---------- Imagens ----------
 export function promptImagem(slide, { cfg, tipo, n, total, ajuste }) {
   const formato = tipo === "story" ? "vertical Instagram Story (9:16)" : "Instagram feed post (4:5)";
   const linhas = [
@@ -129,6 +129,43 @@ function acharImagem(o) {
 }
 
 export async function gerarImagem(prompt, refs, aspect) {
+  if (process.env.OPENAI_API_KEY) {
+    const size = aspect === "9:16" ? "1024x1536" : "1024x1024";
+    if (refs.length > 0) {
+      const form = new FormData();
+      form.append("model", "gpt-image-1");
+      form.append("prompt", prompt);
+      form.append("size", size);
+      form.append("quality", "high");
+      form.append("output_format", "jpeg");
+      form.append("n", "1");
+      for (const ref of refs) {
+        const buf = Buffer.from(ref.b64, "base64");
+        form.append("image[]", new Blob([buf], { type: ref.mime }), "ref.jpg");
+      }
+      const r = await fetch("https://api.openai.com/v1/images/edits", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.OPENAI_API_KEY}` },
+        body: form,
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error("OpenAI: " + (j.error?.message || r.status));
+      const b64 = j.data?.[0]?.b64_json;
+      if (!b64) throw new Error("OpenAI não retornou imagem");
+      return Buffer.from(b64, "base64");
+    }
+    const r = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`, "content-type": "application/json" },
+      body: JSON.stringify({ model: "gpt-image-1", prompt, size, quality: "high", output_format: "jpeg", n: 1 }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error("OpenAI: " + (j.error?.message || r.status));
+    const b64 = j.data?.[0]?.b64_json;
+    if (!b64) throw new Error("OpenAI não retornou imagem");
+    return Buffer.from(b64, "base64");
+  }
+  // Fallback: Nano Banana
   const input = [{ type: "text", text: prompt }, ...refs.map((r) => ({ type: "image", mime_type: r.mime, data: r.b64 }))];
   const r = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
     method: "POST",
