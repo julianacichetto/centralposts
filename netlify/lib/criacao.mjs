@@ -95,8 +95,58 @@ export function acharProibidas(copy, lista) {
 }
 
 // ---------- Imagens ----------
-export function promptImagem(slide, { cfg, tipo, n, total, ajuste }) {
+const MASTER_ART_DIRECTION = `You are a senior art director, advertising photographer and graphic designer creating premium campaign images.
+
+PHOTOREALISM REQUIREMENTS (non-negotiable):
+- Natural, detailed textures with physically coherent lighting, soft realistic shadows and natural reflections.
+- Professional camera depth of field: studio lighting or controlled natural light, shallow focus on hero subject.
+- Skin (when present): visible pores, natural texture, subtle imperfections — never plastic or overly smooth.
+- Materials: accurate reflections, transparency, gloss and surface finish for every object.
+- Fabrics: real drape, stitching, folds. Hair: individual strands, volume and natural movement.
+- Anatomy: correct hands, fingers, eyes, teeth, proportions and scale.
+- Environment: real-looking location, coherent perspective — no floating objects, no impossible lighting.
+- Final result must look like a professional photo shoot, not AI-generated.
+
+BRAND IDENTITY — HF Fórmulas (Brazilian compounding pharmacy):
+- Primary accent: crimson red #BE0002 on white/light-grey backgrounds.
+- Large glossy crimson curved wave shapes sweeping from the corners.
+- Bold heavy sans-serif typography in black with red accents.
+- Red rounded banners with white bold text. Red circular icon badges with white line icons.
+- Softly blurred modern pharmacy or laboratory environment as background.
+- High-end, trustworthy, professional agency look. Clean generous margins.
+
+LOGO PLACEMENT:
+- At the top center: a red circular badge (#BE0002) with white bold uppercase "HF" and smaller caps "FÓRMULAS" below.
+- Exact proportions, clean edges, no distortion, no extra elements around it.
+
+COMPOSITION RULES:
+- Balanced, intentional layout with clear visual hierarchy and a well-defined focal point.
+- Strategic use of light, shadow, contrast and depth. Premium result — no cluttered or generic layouts.
+- One photorealistic hero image with studio lighting, soft reflections and shallow depth of field.`;
+
+export function promptImagem(slide, { cfg, tipo, n, total, ajuste, openai = false }) {
   const formato = tipo === "story" ? "vertical Instagram Story (9:16)" : "Instagram feed post (4:5)";
+  if (openai) {
+    const linhas = [
+      MASTER_ART_DIRECTION,
+      ``,
+      `CREATE: a finished ${formato} graphic. Style override if different from above: ${cfg.estilo}`,
+      `HERO IMAGE: ${slide.cena || "pharmacy related still life"}. Photorealistic, no text or labels on any object.`,
+      ``,
+      `TEXT — render EXACTLY these words in Brazilian Portuguese with correct accents, nothing else:`,
+      `• Headline (very large, heavy bold sans-serif, black, uppercase): "${slide.titulo}"${slide.destaque ? ` — the word(s) "${slide.destaque}" in crimson red #BE0002` : ""}.`,
+      slide.faixa ? `• Red rounded banner (#BE0002) with white bold uppercase text: "${slide.faixa}".` : "",
+      slide.itens?.length
+        ? `• ${slide.itens.length} icon rows — each: a red circle (#BE0002) with simple white line icon + black bold uppercase text: ${slide.itens.map((i) => `"${i}"`).join(", ")}.`
+        : "",
+      tipo !== "story" && total > 1 ? `• Small discreet page indicator top-right: "${n}/${total}".` : "",
+      ``,
+      `STRICT RULES: Do NOT add any other text, prices, percentages, slogans, fake labels or medical claims. Spell every word exactly as given. Final image must look like it was shot and finished by a high-end advertising team.`,
+      ajuste ? `ADJUSTMENT: ${ajuste}` : "",
+    ];
+    return linhas.filter(Boolean).join("\n");
+  }
+  // Nano Banana (with attached reference images)
   const linhas = [
     `Create a finished ${formato} graphic for HF Fórmulas, a Brazilian compounding pharmacy.`,
     `VISUAL STYLE: ${cfg.estilo}`,
@@ -131,29 +181,6 @@ function acharImagem(o) {
 export async function gerarImagem(prompt, refs, aspect) {
   if (process.env.OPENAI_API_KEY) {
     const size = aspect === "9:16" ? "1024x1536" : "1024x1024";
-    if (refs.length > 0) {
-      const form = new FormData();
-      form.append("model", "gpt-image-1");
-      form.append("prompt", prompt);
-      form.append("size", size);
-      form.append("quality", "high");
-      form.append("output_format", "jpeg");
-      form.append("n", "1");
-      for (const ref of refs) {
-        const buf = Buffer.from(ref.b64, "base64");
-        form.append("image[]", new Blob([buf], { type: ref.mime }), "ref.jpg");
-      }
-      const r = await fetch("https://api.openai.com/v1/images/edits", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.OPENAI_API_KEY}` },
-        body: form,
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error("OpenAI: " + (j.error?.message || r.status));
-      const b64 = j.data?.[0]?.b64_json;
-      if (!b64) throw new Error("OpenAI não retornou imagem");
-      return Buffer.from(b64, "base64");
-    }
     const r = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: { "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`, "content-type": "application/json" },

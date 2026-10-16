@@ -49,7 +49,7 @@ export default async (req) => {
       if (!s) continue;
       feitos++;
       await salvarPost(postId, { progresso: `Gerando arte ${feitos}/${regerar.length}${ehStory ? " (story)" : ""}…` });
-      const prompt = promptImagem(s, { cfg, tipo: ehStory ? "story" : "feed", n: alvo + 1, total, ajuste: ajusteImagem });
+      const prompt = promptImagem(s, { cfg, tipo: ehStory ? "story" : "feed", n: alvo + 1, total, ajuste: ajusteImagem, openai: !!process.env.OPENAI_API_KEY });
       const buf = await gerarImagem(prompt, refs, ehStory ? "9:16" : "4:5");
       const url = await salvarArquivo(buf, `posts/${postId}/${ehStory ? "story" : "slide-" + (alvo + 1)}-${Date.now()}.jpg`);
       if (ehStory) post.story = { ...post.story, url };
