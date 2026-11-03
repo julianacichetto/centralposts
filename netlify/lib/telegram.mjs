@@ -67,10 +67,22 @@ export async function enviarParaAprovacao(post, cfg) {
       inline_keyboard: [[
         { text: "✅ Aprovar", callback_data: `ap:${post.id}` },
         { text: "✏️ Ajustar", callback_data: `aj:${post.id}` },
-      ], [{ text: "🔁 Ver artes de novo", callback_data: `ve:${post.id}` }]],
+      ], [
+        { text: "📷 Trocar slide", callback_data: `ts:${post.id}` },
+        { text: "🔁 Ver artes de novo", callback_data: `ve:${post.id}` },
+      ]],
     },
   });
   await salvarConfig({ pendente: post.id, aguardandoAjuste: false, pendenteTipo: "post" });
+}
+
+// Baixa uma foto recebida no Telegram e retorna um Buffer.
+export async function baixarFotoTelegram(fileId) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const info = await tg("getFile", { file_id: fileId });
+  const r = await fetch(`https://api.telegram.org/file/bot${token}/${info.file_path}`);
+  if (!r.ok) throw new Error(`Não consegui baixar a foto do Telegram (${r.status})`);
+  return Buffer.from(await r.arrayBuffer());
 }
 
 // Aprovação de e-mail marketing.

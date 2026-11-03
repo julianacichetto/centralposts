@@ -83,6 +83,8 @@ export const CONFIG_PADRAO = {
   estiloRefUrl: "",
   pendente: null,
   aguardandoAjuste: false,
+  aguardandoFoto: false,
+  slideAlvo: null,
 };
 
 export async function lerConfig() {
