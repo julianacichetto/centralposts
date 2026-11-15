@@ -1,6 +1,6 @@
 // Função em segundo plano (até 15 min): escreve os textos, gera as artes e manda para aprovação.
 // Corpo: { postId, instrucao?, apenasImagens?, slide?: número | "story", ajusteImagem?, enviar? }
-import { internoOk, lerPost, salvarPost, lerConfig, baixarB64, salvarArquivo } from "../lib/base.mjs";
+import { internoOk, lerPost, salvarPost, lerConfig, baixarB64, salvarArquivo, lerViralRefs } from "../lib/base.mjs";
 import { gerarCopy, revisarCopy, acharProibidas, promptImagem, gerarImagem } from "../lib/criacao.mjs";
 import { enviarParaAprovacao, avisar } from "../lib/telegram.mjs";
 
@@ -26,10 +26,11 @@ export default async (req) => {
     } else if (apenasImagens && post.slides?.length) {
       regerar = [...post.slides.keys(), "story"];
     } else {
-      let copy = await gerarCopy(post, cfg);
+      const viralRefs = await lerViralRefs().catch(() => null);
+      let copy = await gerarCopy(post, cfg, "", viralRefs?.analise);
       let alertas = acharProibidas(copy, cfg.proibidas);
       if (alertas.length) {
-        copy = await gerarCopy(post, cfg, `ATENÇÃO: não use estes termos proibidos: ${alertas.join(", ")}.`);
+        copy = await gerarCopy(post, cfg, `ATENÇÃO: não use estes termos proibidos: ${alertas.join(", ")}.`, viralRefs?.analise);
         alertas = acharProibidas(copy, cfg.proibidas);
       }
       post = { ...post, slides: copy.slides.map((s) => ({ ...s, url: null })), story: { ...copy.story, url: null }, legenda: copy.legenda, alertas };

@@ -1,4 +1,5 @@
-// Textos (Claude API) e artes (OpenAI gpt-image-1, com fallback Nano Banana).
+// Textos (Claude API) e artes (OpenAI gpt-image-2, com fallback Nano Banana).
+import Jimp from "jimp";
 
 const REGRAS = `Você é o redator de redes sociais da HF Fórmulas, farmácia de manipulação no Brasil.
 Escreva em português do Brasil, tom próximo, claro e profissional.
@@ -60,9 +61,58 @@ WhatsApp: ${cfg.whatsappExibido} | Site: ${cfg.site}${cfg.instagram ? " | Instag
 Hashtags padrão: ${cfg.hashtags}`;
 }
 
-export async function gerarCopy(post, cfg, aviso = "") {
-  const user = `${contexto(post, cfg)}\n\n${aviso}\nRetorne neste formato: ${ESQUEMA}`;
+export async function gerarCopy(post, cfg, aviso = "", viral = null) {
+  let refViral = "";
+  if (viral?.insight) {
+    refViral = `\n\nReferências de posts virais do nicho (use como modelagem de estilo e estrutura, não copie o conteúdo):
+Cenas visuais que funcionam: ${(viral.cenas_frequentes || []).slice(0, 3).join("; ")}
+Estrutura de carrossel observada: ${(viral.estrutura_carrossel || []).slice(0, 2).join(" | ")}
+Ganchos virais: ${(viral.ganchos || []).slice(0, 3).join(" | ")}
+Tom predominante: ${viral.tom_legenda || ""}
+Insight: ${viral.insight}`;
+  }
+  const user = `${contexto(post, cfg)}${refViral}\n\n${aviso}\nRetorne neste formato: ${ESQUEMA}`;
   return claude(REGRAS, user);
+}
+
+// Analisa posts virais do Instagram com Claude Vision e extrai padrões de conteúdo.
+// posts: [{ hashtag, caption, imgB64?, imgMime?, mediaType, permalink }]
+export async function analisarPadroes(posts) {
+  if (!posts?.length) return null;
+  const content = [
+    {
+      type: "text",
+      text: `Você é um analista de conteúdo viral do Instagram. Analise estes ${posts.length} posts que estão viralizando no nicho de farmácia de manipulação e saúde no Brasil.\n\nObserve: estilo visual, o que aparece nas imagens, como o carrossel é organizado, o gancho da legenda, o tom da escrita.\n\nRetorne SOMENTE o JSON com os padrões extraídos.`,
+    },
+  ];
+  for (const p of posts.slice(0, 10)) {
+    if (p.imgB64 && p.imgMime) {
+      content.push({ type: "image", source: { type: "base64", media_type: p.imgMime, data: p.imgB64 } });
+    }
+    content.push({ type: "text", text: `Hashtag: #${p.hashtag} | Tipo: ${p.mediaType}\nLegenda: ${p.caption.slice(0, 400)}` });
+  }
+  const esquema = `{"padroes_visuais":["..."],"estrutura_carrossel":["..."],"ganchos":["..."],"tom_legenda":"...","cenas_frequentes":["..."],"insight":"..."}`;
+  content.push({ type: "text", text: `\nRetorne SOMENTE este JSON: ${esquema}` });
+
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": process.env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: process.env.CLAUDE_MODEL || "claude-sonnet-5-5",
+      max_tokens: 2000,
+      messages: [{ role: "user", content }],
+    }),
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error("Claude Vision: " + (j.error?.message || r.status));
+  const txt = (j.content || []).map((c) => c.text || "").join("");
+  const ini = txt.indexOf("{"), fim = txt.lastIndexOf("}");
+  if (ini < 0) return null;
+  return JSON.parse(txt.slice(ini, fim + 1));
 }
 
 // Revisão a partir de um pedido de ajuste (WhatsApp ou painel).
@@ -95,42 +145,64 @@ export function acharProibidas(copy, lista) {
 }
 
 // ---------- Imagens ----------
-const MASTER_ART_DIRECTION = `You are a senior art director, advertising photographer and graphic designer creating premium campaign images.
+const MASTER_ART_DIRECTION = `You are a senior art director for a luxury Brazilian compounding pharmacy brand, creating premium social media visuals that look like high-end advertising agency composites.
 
-PHOTOREALISM REQUIREMENTS (non-negotiable):
-- Natural, detailed textures with physically coherent lighting, soft realistic shadows and natural reflections.
-- Professional camera depth of field: studio lighting or controlled natural light, shallow focus on hero subject.
-- Skin (when present): visible pores, natural texture, subtle imperfections — never plastic or overly smooth.
-- Materials: accurate reflections, transparency, gloss and surface finish for every object.
-- Fabrics: real drape, stitching, folds. Hair: individual strands, volume and natural movement.
-- Anatomy: correct hands, fingers, eyes, teeth, proportions and scale.
-- Environment: real-looking location, coherent perspective — no floating objects, no impossible lighting.
-- Final result must look like a professional photo shoot, not AI-generated.
+BACKGROUND & ATMOSPHERE:
+- Warm ivory/cream background (#F5EFE6) with a soft gradient — lighter, almost glowing at the center.
+- SIGNATURE ELEMENT: dramatic flowing deep crimson silk fabric (rich red #8B0000 to #CC0000) sweeping in large billowing waves — entering from the top-right corner, arching gracefully through the center-right of the frame, adding movement, luxury and brand energy.
+- DEPTH ACCENT: soft-focus dark red or burgundy foliage/botanical leaves blurred in the upper-left background corner, adding organic depth without competing with the main content.
+- PRODUCT GLOW: a warm golden spotlight radiating subtly from the lower-center area, giving a premium luminous halo effect to the product arrangement.
 
-BRAND IDENTITY — HF Fórmulas (Brazilian compounding pharmacy):
-- Primary accent: crimson red #BE0002 on white/light-grey backgrounds.
-- Large glossy crimson curved wave shapes sweeping from the corners.
-- Bold heavy sans-serif typography in black with red accents.
-- Red rounded banners with white bold text. Red circular icon badges with white line icons.
-- Softly blurred modern pharmacy or laboratory environment as background.
-- High-end, trustworthy, professional agency look. Clean generous margins.
+LOGO AREA:
+- Leave the top-center area clean and uncluttered — NO logo, NO brand mark, NO text in that zone. The logo will be composited later.
 
-LOGO PLACEMENT:
-- At the top center: a red circular badge (#BE0002) with white bold uppercase "HF" and smaller caps "FÓRMULAS" below.
-- Exact proportions, clean edges, no distortion, no extra elements around it.
+PRODUCT PHOTOGRAPHY (lower half of the frame):
+- Products rest on a warm travertine or veined marble stone surface.
+- Unlabeled pharmaceutical items — mix of: white frosted pill bottle with white cap, amber glass dropper bottle with black rubber dropper cap, clear glass cream jar with white cream visible, white foil sachê packet, loose white/beige capsules scattered naturally, small clear glass petri dish with white powder.
+- Professional studio lighting: soft fill light from the left, warm key light from the right, subtle reflections on glass and glossy surfaces, shallow depth of field with front items sharp and background items slightly soft.
+- Arrangement: layered depth, items at varying heights, slight natural overlaps — like a premium editorial product shot.
+- NO text, logos, labels or printed markings on any product.
 
-COMPOSITION RULES:
-- Balanced, intentional layout with clear visual hierarchy and a well-defined focal point.
-- Strategic use of light, shadow, contrast and depth. Premium result — no cluttered or generic layouts.
-- One photorealistic hero image with studio lighting, soft reflections and shallow depth of field.`;
+TYPOGRAPHY (render exactly as specified — no improvisation):
+- Main headline: large bold condensed black sans-serif, centered horizontally, proportional and legible — NOT oversized, text should feel balanced within the composition, not fill the entire frame.
+- Emphasis word(s) (the "destaque"): same bold weight as the headline but in deep crimson red #BE0002.
+- CTA faixa banner: a dark crimson rounded pill/capsule shape (#7A0000), white bold uppercase text centered inside, with a › arrow at the right end.
+- Icon rows: each row has a crimson circle badge (#BE0002) with a simple white line icon inside, followed by black bold uppercase text to its right.
+- Page indicator (if present): small discreet text top-right corner.
+- CRITICAL: spell every single word EXACTLY as given. Correct all Brazilian Portuguese accents. Do not add, remove or change any word.
+
+MANDATORY RULES:
+- No text, brand marks or labels on any product packaging.
+- No fake medical claims, prices, percentages or treatment promises.
+- No watermarks, stock photo signatures or extra logos beyond HF.
+- Final result must look like it was created by a top advertising agency — premium, editorial, luxury pharmacy aesthetic.`;
+
+const LAYOUT_VARIANTS = [
+  // slide 1 — capa: foto hero em tela cheia, texto sobreposto na metade inferior
+  `LAYOUT — COVER (slide 1): Full-bleed cinematic hero photo occupying the entire frame. Text and logo float over the image. Place the Leave top-center area clear. Headline in the lower-center third, very large, with a semi-transparent dark overlay strip behind the text if needed for contrast. Red faixa banner at the very bottom edge.`,
+  // slide 2 — conteúdo: split vertical, foto à direita, texto à esquerda em fundo creme
+  `LAYOUT — SPLIT (slide 2): Vertical split composition. LEFT half: cream (#F5EFE6) background with the headline, destaque in red, and icon rows stacked neatly. RIGHT half: the hero photo, slightly cropped, with the crimson silk flowing across the dividing line connecting both halves. Leave top-left area clear.`,
+  // slide 3 — conteúdo: tipografia dominante, foto como textura de fundo desfocada
+  `LAYOUT — TYPOGRAPHY-FIRST (slide 3): The hero photo is used as a blurred, darkened full-frame background texture (opacity ~30%). The entire foreground is a large, confident typographic composition: massive headline centered, icon rows below, red faixa banner. Bold graphic design feel — text is the hero. Leave top-center area clear.`,
+  // slide 4 — conteúdo: foto dominante, legenda pequena embaixo
+  `LAYOUT — PHOTO-DOMINANT (slide 4): The hero photo occupies the top 65% of the frame in sharp detail, editorial style. A clean cream (#F5EFE6) panel in the bottom 35% contains the headline and icon rows. Red silk flows from the photo area into the cream panel as a transition. Leave top-center area clear.`,
+  // slide 5 — CTA: design limpo, sem foto, foco no vermelho e chamada
+  `LAYOUT — CTA CLOSE (slide 5): Clean, brand-focused design with NO hero scene photo. Cream background with the crimson silk as the main decorative element (large, dramatic). Center: the headline very bold. Below: icon rows for WhatsApp and site. Red faixa banner prominent. Feels like a premium brand closing card.`,
+];
 
 export function promptImagem(slide, { cfg, tipo, n, total, ajuste, openai = false }) {
   const formato = tipo === "story" ? "vertical Instagram Story (9:16)" : "Instagram feed post (4:5)";
   if (openai) {
+    // Seleciona layout pelo índice do slide (n começa em 1); para foto única usa layout neutro
+    const layoutIdx = total > 1 ? Math.min(n - 1, LAYOUT_VARIANTS.length - 1) : 0;
+    const layout = total > 1 ? LAYOUT_VARIANTS[layoutIdx] : `LAYOUT — SINGLE PHOTO: balanced composition, hero photo upper half, text lower half, Leave top-center area clear.`;
     const linhas = [
       MASTER_ART_DIRECTION,
       ``,
       `CREATE: a finished ${formato} graphic. Style override if different from above: ${cfg.estilo}`,
+      ``,
+      layout,
+      ``,
       `HERO IMAGE: ${slide.cena || "pharmacy related still life"}. Photorealistic, no text or labels on any object.`,
       ``,
       `TEXT — render EXACTLY these words in Brazilian Portuguese with correct accents, nothing else:`,
@@ -178,19 +250,38 @@ function acharImagem(o) {
   return null;
 }
 
+async function composLogoReal(buf, logoB64, logoMime) {
+  try {
+    const [base, logo] = await Promise.all([
+      Jimp.read(buf),
+      Jimp.read(Buffer.from(logoB64, "base64")),
+    ]);
+    const logoW = Math.round(base.bitmap.width * 0.18);
+    logo.resize(logoW, Jimp.AUTO);
+    const x = Math.round((base.bitmap.width - logo.bitmap.width) / 2);
+    const y = Math.round(base.bitmap.height * 0.025);
+    base.composite(logo, x, y, { mode: Jimp.BLEND_SOURCE_OVER, opacitySource: 1, opacityDest: 1 });
+    return base.getBufferAsync(Jimp.MIME_JPEG);
+  } catch {
+    return buf; // se falhar, retorna sem logo
+  }
+}
+
 export async function gerarImagem(prompt, refs, aspect) {
   if (process.env.OPENAI_API_KEY) {
-    const size = aspect === "9:16" ? "1024x1536" : "1024x1024";
+    // OpenAI gpt-image-2 — gera a arte sem logo, depois compõe o logo real
+    const size = aspect === "9:16" ? "1024x1792" : "1024x1024";
+    const model = process.env.OPENAI_IMAGE_MODEL || "gpt-image-2";
     const r = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: { "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`, "content-type": "application/json" },
-      body: JSON.stringify({ model: "gpt-image-1", prompt, size, quality: "high", output_format: "jpeg", n: 1 }),
+      body: JSON.stringify({ model, prompt, n: 1, size, output_format: "jpeg" }),
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error("OpenAI: " + (j.error?.message || r.status));
-    const b64 = j.data?.[0]?.b64_json;
-    if (!b64) throw new Error("OpenAI não retornou imagem");
-    return Buffer.from(b64, "base64");
+    let buf = Buffer.from(j.data[0].b64_json, "base64");
+    if (refs?.[0]?.b64) buf = await composLogoReal(buf, refs[0].b64, refs[0].mime);
+    return buf;
   }
   // Fallback: Nano Banana
   const input = [{ type: "text", text: prompt }, ...refs.map((r) => ({ type: "image", mime_type: r.mime, data: r.b64 }))];

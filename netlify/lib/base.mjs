@@ -85,6 +85,7 @@ export const CONFIG_PADRAO = {
   aguardandoAjuste: false,
   aguardandoFoto: false,
   slideAlvo: null,
+  hashtagsViral: ["farmaciademanipulacao", "manipulados", "formulados", "farmaciamanipulacao", "bemestar"],
 };
 
 export async function lerConfig() {
@@ -110,6 +111,19 @@ export async function salvarPost(id, parcial) {
   const { db } = fb();
   await db.doc(`posts/${id}`).set({ ...parcial, atualizadoEm: new Date().toISOString() }, { merge: true });
 }
+export async function lerViralRefs() {
+  const { db } = fb();
+  const q = await db.collection("viral_refs").orderBy("buscadoEm", "desc").limit(1).get();
+  if (q.empty) return null;
+  const d = q.docs[0].data();
+  if (Date.now() - new Date(d.buscadoEm).getTime() > 7 * 86400000) return null; // descarta se > 7 dias
+  return d;
+}
+export async function salvarViralRefs(data) {
+  const { db } = fb();
+  await db.collection("viral_refs").add({ ...data, buscadoEm: new Date().toISOString() });
+}
+
 export async function postsDoDia(iso) {
   const { db } = fb();
   const q = await db.collection("posts").where("date", "==", iso).get();

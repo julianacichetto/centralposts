@@ -60,6 +60,32 @@ export async function enviarParaAprovacao(post, cfg) {
   await salvarConfig({ pendente: post.id, aguardandoAjuste: false });
 }
 
+// ---------- Viral ----------
+const HASHTAGS_PADRAO = ["farmaciademanipulacao", "manipulados", "formulados", "farmaciamanipulacao", "bemestar"];
+
+export async function buscarViralIG(hashtags = HASHTAGS_PADRAO) {
+  const posts = [];
+  for (const h of hashtags.slice(0, 5)) {
+    try {
+      const res = await ig("ig_hashtag_search", { user_id: process.env.IG_USER_ID, q: h }, "GET");
+      const hid = res.data?.[0]?.id;
+      if (!hid) continue;
+      const media = await ig(`${hid}/top_media`, {
+        user_id: process.env.IG_USER_ID,
+        fields: "id,caption,media_type,media_url,permalink,timestamp,children{media_url}",
+      }, "GET");
+      for (const m of (media.data || []).slice(0, 3)) {
+        if (!m.caption) continue;
+        const imgUrl = m.media_url || m.children?.data?.[0]?.media_url || null;
+        posts.push({ hashtag: h, caption: m.caption, imgUrl, mediaType: m.media_type, permalink: m.permalink });
+      }
+    } catch (e) {
+      console.warn(`Viral #${h}:`, e.message);
+    }
+  }
+  return posts;
+}
+
 // ---------- Instagram ----------
 async function ig(path, params, method = "POST") {
   const url = new URL(`${GRAPH()}/${path}`);

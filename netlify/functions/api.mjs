@@ -1,5 +1,5 @@
 // API do painel. Todas as rotas exigem o cabeçalho x-senha = PANEL_PASSWORD.
-import { fb, json, lerConfig, salvarConfig, lerPost, salvarPost, dispararBg, salvarArquivo, CONFIG_PADRAO, dataSP } from "../lib/base.mjs";
+import { fb, json, lerConfig, salvarConfig, lerPost, salvarPost, dispararBg, salvarArquivo, CONFIG_PADRAO, dataSP, lerViralRefs } from "../lib/base.mjs";
 import { enviarParaAprovacao } from "../lib/telegram.mjs";
 import { aprovarPost, lerEmail, aprovarEmail } from "../lib/acoes.mjs";
 import { CALENDARIO_EMAILS, importarContatos, resumoContatos, renderEmail, linkPreview } from "../lib/emailmkt.mjs";
@@ -102,6 +102,12 @@ export default async (req) => {
       }
     }
 
+    // ----- viral -----
+    if (partes[0] === "viral") {
+      if (m === "GET") return json(await lerViralRefs());
+      if (m === "POST") { await dispararBg("/bg/viral", {}); return json({ ok: true }); }
+    }
+
     // ----- posts -----
     if (partes[0] === "posts") {
       const id = partes[1], acao = partes[2];
@@ -129,6 +135,23 @@ export default async (req) => {
         if (acao === "enviar") { await enviarParaAprovacao(post, await lerConfig()); return json({ ok: true }); }
         if (acao === "aprovar") return json({ ok: true, msg: await aprovarPost(post) });
         if (acao === "publicar") { await dispararBg("/bg/publicar", { postId: id }); return json({ ok: true }); }
+        if (acao === "slide") {
+          const { slide, b64, mime = "image/jpeg" } = corpo;
+          if (slide === undefined || !b64) return json({ erro: "Dados inválidos" }, 400);
+          const postAtual = await lerPost(id);
+          const ehStory = slide === "story";
+          const ext = mime.includes("jpeg") || mime.includes("jpg") ? "jpg" : "png";
+          const urlPath = `posts/${id}/${ehStory ? "story" : "slide-" + (Number(slide) + 1)}-manual-${Date.now()}.${ext}`;
+          const url = await salvarArquivo(Buffer.from(b64, "base64"), urlPath, mime);
+          if (ehStory) {
+            await salvarPost(id, { story: { ...(postAtual.story || {}), url } });
+          } else {
+            const slides = [...(postAtual.slides || [])];
+            slides[Number(slide)] = { ...(slides[Number(slide)] || {}), url };
+            await salvarPost(id, { slides });
+          }
+          return json(await lerPost(id));
+        }
       }
     }
     return json({ erro: "Rota não encontrada" }, 404);
